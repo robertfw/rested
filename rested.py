@@ -5,11 +5,7 @@ import tornado.httpserver
 import tornado.ioloop
 import tornado.web
 
-import resource
 
-import tracker
-
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -112,7 +108,6 @@ class ResourceEncoder(json.JSONEncoder):
             return super().default(self, obj)
 
 
-
 class RootHandler(tornado.web.RequestHandler):
     '''The entry point for our api
 
@@ -131,10 +126,10 @@ class RootHandler(tornado.web.RequestHandler):
             # If we get a ResourceNotFound, raise a 404 error
             try:
                 code, content = getattr(
-                    resource.traverse_resource_tree(self.root, path),
+                    traverse_resource_tree(self.root, path),
                     self.request.method.lower()
                 )()
-            except resource.ResourceNotFound:
+            except ResourceNotFound:
                 raise tornado.web.HTTPError(404)
 
             self.set_header('Content-Type', 'application/json')
@@ -151,16 +146,19 @@ class RootHandler(tornado.web.RequestHandler):
     head = handle
     options = handle
 
-if __name__ == '__main__':
+
+def run_server(root, **kwargs):
+    prefix = kwargs.pop('prefix', '')
+    port = kwargs.pop('port', 8000)
+
     app = tornado.web.Application(
-        debug=True,
-        gzip=True,
-        handlers=[(r"/api/(.*)", RootHandler, {
-            'root': tracker.root,
-            'encoder': resource.ResourceEncoder
-        })]
+        handlers=[(r"/{prefix}/(.*)".format(prefix=prefix), RootHandler, {
+            'root': root,
+            'encoder': ResourceEncoder
+        })],
+        **kwargs
     )
 
     http_server = tornado.httpserver.HTTPServer(app)
-    http_server.listen(8000)
+    http_server.listen(port)
     tornado.ioloop.IOLoop.instance().start()
