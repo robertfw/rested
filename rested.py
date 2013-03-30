@@ -181,9 +181,7 @@ def run_server(
         **kwargs
     )
 
-    tornado.httpserver.HTTPServer(app).listen(port)
-
-    ioloop = tornado.ioloop.IOLoop.instance()
+    app.listen(port)
 
     # setup any kwargs being provided to resources
     app.settings['resource_kwargs'] = {
@@ -191,7 +189,4 @@ def run_server(
         for key, value in resource_kwargs.items()
     }
 
-    if debug:
-        tornado.autoreload.start(ioloop)
-    ioloop.start()
-
+    tornado.ioloop.IOLoop.instance().start()

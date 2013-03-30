@@ -25,15 +25,6 @@ class Users(rested.Resource):
         })
     }
 
-    @tornado.gen.engine
-    def get(self, db):
-        cursor = db.users.find()
-        users = [user for user in (yield motor.Op(cursor.to_list))]
-
-        #TODO: out, damn reference to tornado!
-        tornado.ioloop.IOLoop.instance().stop()
-        return users
-
 
 class Root(rested.Resource):
     obj = {
