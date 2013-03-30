@@ -4,12 +4,12 @@ from resource import Resource
 class Users(Resource):
     obj = {
         1: Resource({
-            'name': 'Robert',
-            'email': 'radicalphoenix@gmail.com'
+            'name': 'User 1',
+            'email': 'example@example.com'
         }),
         2: Resource({
-            'name': 'Helene',
-            'email': 'helenesofiewarner@gmail.com'
+            'name': 'User 2',
+            'email': 'example@example.com'
         })
     }
 
