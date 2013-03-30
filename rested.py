@@ -1,6 +1,7 @@
 import logging
 import json
 
+import tornado.autoreload
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
@@ -22,25 +23,25 @@ class Resource(object):
         if obj:
             self.obj = obj
 
-    def get(self):
+    def get(self, *args, **kwargs):
         return 200, self.obj
 
-    def post(self):
+    def post(self, *args, **kwargs):
         raise NotImplemented()
 
-    def put(self):
+    def put(self, *args, **kwargs):
         raise NotImplemented()
 
-    def delete(self):
+    def delete(self, *args, **kwargs):
         raise NotImplemented()
 
-    def patch(self):
+    def patch(self, *args, **kwargs):
         raise NotImplemented()
 
-    def options(self):
+    def options(self, *args, **kwargs):
         raise NotImplemented()
 
-    def head(self):
+    def head(self, *args, **kwargs):
         raise NotImplemented()
 
     def __getitem__(self, key):
@@ -77,10 +78,6 @@ def traverse_resource_tree(root, path):
         remaining_path = bits[1] if len(bits) > 1 else None
 
         # check the root object at the requested index
-        logging.debug('Checking key "{key} [{type}]"'.format(
-            key=bits[0],
-            type=type(key)))
-
         node = root[key]
 
         # if we have path remaining, recurse using the node we just
@@ -125,10 +122,11 @@ class RootHandler(tornado.web.RequestHandler):
             # The resource should return an HTTP code and some content
             # If we get a ResourceNotFound, raise a 404 error
             try:
+                resource_kwargs = self.settings.get('resource_kwargs', {})
                 code, content = getattr(
                     traverse_resource_tree(self.root, path),
                     self.request.method.lower()
-                )()
+                )(**resource_kwargs)
             except ResourceNotFound:
                 raise tornado.web.HTTPError(404)
 
@@ -147,10 +145,34 @@ class RootHandler(tornado.web.RequestHandler):
     options = handle
 
 
-def run_server(root, **kwargs):
-    prefix = kwargs.pop('prefix', '')
-    port = kwargs.pop('port', 8000)
+def run_server(
+    root,
+    resource_kwargs=None,
+    prefix='',
+    port=8000,
+    debug=False,
+    **kwargs
+):
+    '''Fires up the rested server
+       You must pass in a root resource,
+       Optionally you may provide:
 
+       port: int, what port to bind to (default 8000)
+
+       prefix: string, url prefix (default '')
+
+       lazy_app_settings: a dictionary of callables, once the server is
+       started, they will be run and their return values added to the
+       application settings for their respective keys. This is useful
+       for anything that needs to be initialized after the server starts,
+       like a Motor db
+
+       debug: True / False
+
+       any other keyword arguments will be passed to the tornado application
+    '''
+
+    # setup our main application, passing through any kwargs
     app = tornado.web.Application(
         handlers=[(r"/{prefix}/(.*)".format(prefix=prefix), RootHandler, {
             'root': root,
@@ -159,6 +181,17 @@ def run_server(root, **kwargs):
         **kwargs
     )
 
-    http_server = tornado.httpserver.HTTPServer(app)
-    http_server.listen(port)
-    tornado.ioloop.IOLoop.instance().start()
+    tornado.httpserver.HTTPServer(app).listen(port)
+
+    ioloop = tornado.ioloop.IOLoop.instance()
+
+    # setup any kwargs being provided to resources
+    app.settings['resource_kwargs'] = {
+        key: value() if callable(value) else value
+        for key, value in resource_kwargs.items()
+    }
+
+    if debug:
+        tornado.autoreload.start(ioloop)
+    ioloop.start()
+
