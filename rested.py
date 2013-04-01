@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 class ResourceNotFound(Exception):
     pass
 
+class ServerError(Exception):
+    pass
+
 
 class Resource(object):
     '''Base implementation of a resource
@@ -23,8 +26,8 @@ class Resource(object):
         if obj:
             self.obj = obj
 
-    def get(self, *args, **kwargs):
-        return 200, self.obj
+    def get(self, handler=None, *args, **kwargs):
+        return handler.write_response(200, self.obj)
 
     def post(self, *args, **kwargs):
         raise NotImplemented()
@@ -116,23 +119,37 @@ class RootHandler(tornado.web.RequestHandler):
         self.root = root
         self.encoder = encoder
 
+    def write_content(self, content):
+        logger.debug('writing content...')
+        self.write(json.dumps(content, cls=self.encoder, indent=4))
+
+    def finish(self, code=None, content=None):
+        if content is not None:
+            self.write_content(content)
+
+        if code is not None:
+            self.set_status(code)
+
+        super(RootHandler, self).finish()
+
+    @tornado.web.asynchronous
     def handle(self, path):
+        self.set_header('Content-Type', 'application/json')
         try:
             # Find the requested resource, and call the requested method
             # The resource should return an HTTP code and some content
             # If we get a ResourceNotFound, raise a 404 error
             try:
                 resource_kwargs = self.settings.get('resource_kwargs', {})
-                code, content = getattr(
+                getattr(
                     traverse_resource_tree(self.root, path),
                     self.request.method.lower()
-                )(**resource_kwargs)
+                )(handler=self, **resource_kwargs)
+            except ServerError:
+                raise tornado.web.HTTPError(500)
             except ResourceNotFound:
                 raise tornado.web.HTTPError(404)
 
-            self.set_header('Content-Type', 'application/json')
-            self.write(json.dumps(content, cls=self.encoder, indent=4))
-            self.set_status(code)
         except tornado.web.HTTPError as exc:
             self.send_error(status_code=exc.status_code)
 
@@ -178,6 +195,7 @@ def run_server(
             'root': root,
             'encoder': ResourceEncoder
         })],
+        debug=debug,
         **kwargs
     )
 
