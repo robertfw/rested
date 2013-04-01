@@ -1,9 +1,11 @@
 import logging
+import datetime
 
 import motor
-import rested
-import datetime
 import bson
+
+import rested.tornado
+import rested.resource
 
 
 # just log to the console for now
@@ -13,25 +15,25 @@ logger = logging.getLogger(__name__)
 
 
 # The users of our application
-class Users(rested.Resource):
+class Users(rested.resource.Resource):
     def get(self, db=None, handler=None):
         def got_users(users, error):
             if error:
                 #TODO: implement error handling here
-                pass
+                raise Exception('omg omg omg')
 
             handler.finish(code=200, content=users)
 
         db.users.find().to_list(callback=got_users)
 
 
-class Root(rested.Resource):
+class Root(rested.resource.Resource):
     obj = {
         'users': Users()
     }
 
 
-class MongoResourceEncoder(rested.ResourceEncoder):
+class MongoResourceEncoder(rested.resource.ResourceEncoder):
     def default(self, obj):
         if isinstance(obj, bson.objectid.ObjectId):
             return str(obj)
@@ -42,11 +44,9 @@ class MongoResourceEncoder(rested.ResourceEncoder):
 
 
 if __name__ == '__main__':
-    rested.run_server(
+    rested.tornado.run_server(
         root=Root(),
-        prefix='api',
         debug=True,
-        gzip=True,
         encoder=MongoResourceEncoder,
         resource_kwargs={
             'db': lambda: motor.MotorClient().open_sync()['test']
