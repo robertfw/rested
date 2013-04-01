@@ -2,6 +2,8 @@ import logging
 
 import motor
 import rested
+import datetime
+import bson
 
 
 # just log to the console for now
@@ -28,12 +30,24 @@ class Root(rested.Resource):
         'users': Users()
     }
 
+
+class MongoResourceEncoder(rested.ResourceEncoder):
+    def default(self, obj):
+        if isinstance(obj, bson.objectid.ObjectId):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        else:
+            return super(MongoResourceEncoder, self).default(obj)
+
+
 if __name__ == '__main__':
     rested.run_server(
         root=Root(),
         prefix='api',
         debug=True,
         gzip=True,
+        encoder=MongoResourceEncoder,
         resource_kwargs={
             'db': lambda: motor.MotorClient().open_sync()['test']
         })

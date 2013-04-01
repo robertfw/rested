@@ -105,7 +105,7 @@ class ResourceEncoder(json.JSONEncoder):
         if isinstance(obj, Resource):
             return obj.obj  # that's an unfortunate coincidence of naming
         else:
-            return super().default(self, obj)
+            return super(ResourceEncoder, self).default(obj)
 
 
 class RootHandler(tornado.web.RequestHandler):
@@ -167,6 +167,7 @@ def run_server(
     resource_kwargs=None,
     prefix='',
     port=8000,
+    encoder=None,
     debug=False,
     **kwargs
 ):
@@ -193,7 +194,7 @@ def run_server(
     app = tornado.web.Application(
         handlers=[(r"/{prefix}/(.*)".format(prefix=prefix), RootHandler, {
             'root': root,
-            'encoder': ResourceEncoder
+            'encoder': encoder if encoder else ResourceEncoder
         })],
         debug=debug,
         **kwargs
